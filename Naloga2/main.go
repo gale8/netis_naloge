@@ -12,37 +12,33 @@ import (
 )
 
 func main() {
-	secretToken := flag.String("secret", "", "a Secret token")
+	keyName := flag.String("key_name", "", "a Private Key name")
 	flag.Parse()
-	fmt.Println(*secretToken)
-
-	keySize := 2048
-	// reader := strings.NewReader(*secretToken)
-	// Generate private key using SECRET FROM INPUT
-	privateKey, err := rsa.GenerateKey(rand.Reader, keySize)
-	if err != nil {
-		panic(err)
+	if *keyName == "" {
+		fmt.Println("You must provide key name.")
+		return
 	}
 
-	keyFilePath := "./keys/" + (*secretToken) + "_rsa.pem"
-	// CHECK IF FILE WITH THE NAME 'secret'_rsa.pem already EXISTS
+	keyFilePath := "./keys/" + (*keyName) + "_rsa.pem"
+	// CHECK IF FILE WITH THE NAME 'key_name'_rsa.pem already EXISTS
 	if _, err := os.Stat(keyFilePath); !os.IsNotExist(err) {
-		// FILE EXISTS - GET CONTENT
-		fileContentInBytes, err := ioutil.ReadFile(keyFilePath)
+		privateKeyInBytes, err := ioutil.ReadFile(keyFilePath)
 		if err != nil {
 			panic(err)
 		}
-		// DISPLAY CONTENT
-		fmt.Println(string(fileContentInBytes))
+		fmt.Println(string(privateKeyInBytes))
 	} else {
-		// SAVE PRIVATE_KEY IN FILE
-		// Encode private key to PKCS#1 ASN.1 PEM.
-		pkPem := pem.
-			EncodeToMemory(&pem.Block{
-				Type: "RSA PRIVATE KEY",
-				// CONVERT 'privateKey' into PKCS#1 ASN.1 DER form
-				Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-			})
+		// Generate a new private key
+		keySize := 2048
+		privateKey, err := rsa.GenerateKey(rand.Reader, keySize)
+		if err != nil {
+			panic(err)
+		}
+		// Encode private key to PKCS#1 ASN.1 PEM format
+		pkPem := pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+		})
 		// SAVE PK TO FILE
 		if err := ioutil.WriteFile(keyFilePath, pkPem, 0100); err != nil {
 			panic(err)

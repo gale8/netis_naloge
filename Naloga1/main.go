@@ -13,7 +13,6 @@ import (
 	"os"
 )
 
-// NALOGA 1
 func main() {
 	// LOAD ENV FILE
 	errEnv := godotenv.Load("environment.env")
@@ -29,14 +28,14 @@ func main() {
 		fmt.Println("You need to provide a file name.")
 		return
 	}
-	// GET PAYLOAD FROM OUR FILE:
+
 	content, err := getJsonFileContent(*file)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	// GET PRIVATE_KEY from .ENV and DECODE/PARSE IT
 	pemString := os.Getenv("PRIVATE_KEY")
+	// DECODE and PARSE pk in structure suitable for signing
 	block, _ := pem.Decode([]byte(pemString))
 	privateKey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
 	// Sign generates a signature for the given payload, and serializes it in compact serialization format.
