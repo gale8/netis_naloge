@@ -7,7 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
-	"gopkg.in/square/go-jose.v2"
+	"github.com/lestrrat-go/jwx/jwa"
+	"github.com/lestrrat-go/jwx/jws"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -18,7 +19,7 @@ func main() {
 	// HANDLE ENDPOINTS
 	router.HandleFunc("/sign", Sign).Methods("POST")
 	router.HandleFunc("/public", Public).Methods("POST")
-	router.HandleFunc("/validate", nil).Methods("POST")
+	router.HandleFunc("/validate", Validate).Methods("POST")
 	// RUN SERVER
 	err := http.ListenAndServe(":8080", router)
 	fmt.Println("Server is listening on  port 8080.")
@@ -32,7 +33,11 @@ type Item struct {
 	Content string `json:"content"`
 }
 
-func getRequestData(w http.ResponseWriter, r *http.Request, isBodyRequired bool) (string, []byte, error) {
+type JWS struct {
+	JwsObject string `json:"jws_object"`
+}
+
+func getRequestData(r *http.Request, isBodyRequired bool) (string, []byte, error) {
 	keyName := r.URL.Query().Get("keyName")
 	if keyName == "" {
 		return "", []byte{}, errors.New("insufficient data")
@@ -73,9 +78,9 @@ func getKeyFileData(keyName string, w http.ResponseWriter) ([]byte, error) {
 
 func Sign(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("POST /sign")
-	keyName, bodyDataBytes, err := getRequestData(w, r, true)
+	keyName, bodyDataBytes, err := getRequestData(r, true)
 	if err != nil {
-		sendErrorResponse(w, "Error decoding body data.")
+		sendErrorResponse(w, "Error decoding input data.")
 		return
 	}
 	fileContentInBytes, err := getKeyFileData(keyName, w)
@@ -86,25 +91,21 @@ func Sign(w http.ResponseWriter, r *http.Request) {
 	// decode and get private key string
 	pemFormattedBlock, _ := pem.Decode(fileContentInBytes)
 	privateKey, _ := x509.ParsePKCS1PrivateKey(pemFormattedBlock.Bytes)
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}, nil)
-	if err != nil {
-		sendErrorResponse(w, "Signer error.")
-		panic(err)
-	}
-	jwsObj, err := signer.Sign(bodyDataBytes)
+	// sign json content from our request
+	jwsObj, err := jws.Sign(bodyDataBytes, jwa.RS256, privateKey)
 	if err != nil {
 		panic(err)
 	}
-	err = sendOkResponse(w, jwsObj.Signatures[0].Signature)
+	err = sendOkResponse(w, string(jwsObj))
 	if err != nil {
-		sendErrorResponse(w, "Error converting struct data to bytes.")
+		sendErrorResponse(w, "Error when sending response.")
 		panic(err)
 	}
 }
 
 func Public(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("POST /public")
-	keyName, _, err := getRequestData(w, r, false)
+	keyName, _, err := getRequestData(r, false)
 	if err != nil {
 		sendErrorResponse(w, "Error decoding body data.")
 		return
@@ -124,6 +125,43 @@ func Public(w http.ResponseWriter, r *http.Request) {
 	}
 	publicKeyPem := string(pem.EncodeToMemory(&pubKeyBlock))
 	err = sendOkResponse(w, publicKeyPem)
+	if err != nil {
+		sendErrorResponse(w, "Error converting struct data to bytes.")
+		panic(err)
+	}
+}
+
+func Validate(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("POST /sign")
+	keyName, _, err := getRequestData(r, false)
+	if err != nil {
+		sendErrorResponse(w, "Error decoding input data.")
+		return
+	}
+	// DECODE BODY
+	var bodyData JWS
+	decoder := json.NewDecoder(r.Body)
+	decodingErr := decoder.Decode(&bodyData)
+	if decodingErr != nil {
+		sendErrorResponse(w, "Error decoding input data.")
+		return
+	}
+	decodedJws := []byte(bodyData.JwsObject)
+	fileContentInBytes, err := getKeyFileData(keyName, w)
+	if err != nil {
+		sendErrorResponse(w, "Error fetching Private key data")
+		return
+	}
+	// decode and get private key string
+	pemFormattedBlock, _ := pem.Decode(fileContentInBytes)
+	privateKey, _ := x509.ParsePKCS1PrivateKey(pemFormattedBlock.Bytes)
+	// VERIFY TOKEN:
+	_, err = jws.Verify(decodedJws, jwa.RS256, privateKey)
+	if err != nil {
+		sendErrorResponse(w, "Error: wrong private key")
+		return
+	}
+	err = sendOkResponse(w, true)
 	if err != nil {
 		sendErrorResponse(w, "Error converting struct data to bytes.")
 		panic(err)

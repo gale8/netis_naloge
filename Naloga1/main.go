@@ -6,7 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/joho/godotenv"
-	"gopkg.in/square/go-jose.v2"
+	"github.com/lestrrat-go/jwx/jwa"
+	"github.com/lestrrat-go/jwx/jws"
 	"io/ioutil"
 	"log"
 	"os"
@@ -24,28 +25,26 @@ func main() {
 	file := flag.String("file", "", "a .json file")
 	// Once all flags are declared, call flag.Parse() to execute the command-line parsing.
 	flag.Parse()
-
-	// GET PRIVATE_KEY from .ENV and DECODE/PARSE IT
-	pemString := os.Getenv("Private_KEY")
-	block, _ := pem.Decode([]byte(pemString))
-	key, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
-	// SIGNER INIT with OUR PRIVATE KEY AND RS256 Signature algorithm
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key}, nil)
-	if err != nil {
-		panic(err)
+	if *file == "" {
+		fmt.Println("You need to provide a file name.")
+		return
 	}
 	// GET PAYLOAD FROM OUR FILE:
 	content, err := getJsonFileContent(*file)
 	if err != nil {
-		panic(err)
+		panic(err.Error())
 	}
-	// SIGN OUR PAYLOAD DATA WITH OUR PRIVATE KEY
-	jwsObj, err := signer.Sign(content)
+
+	// GET PRIVATE_KEY from .ENV and DECODE/PARSE IT
+	pemString := os.Getenv("PRIVATE_KEY")
+	block, _ := pem.Decode([]byte(pemString))
+	privateKey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
+	// Sign generates a signature for the given payload, and serializes it in compact serialization format.
+	jwsObj, err := jws.Sign(content, jwa.RS256, privateKey)
 	if err != nil {
 		panic(err)
 	}
-	// 'jwsObj' is a PROTECTED JWS OBJECT
-	fmt.Println(jwsObj.Signatures)
+	fmt.Println(string(jwsObj))
 }
 
 func getJsonFileContent(fileName string) ([]byte, error) {
