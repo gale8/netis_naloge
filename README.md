@@ -1,6 +1,4 @@
-# netis_naloge
-
-# netis_naloge
+# NALOGE ZAPISKI
 
 ### NALOGA 1:
 
