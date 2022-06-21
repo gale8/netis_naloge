@@ -11,7 +11,6 @@ zato nisem bil siguren kaj pomeni privaten ključ v jwk formatu. Najbolj smiseln
 
 `PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIEoQIB...Bu8iIQ==\n-----END RSA PRIVATE KEY-----"
 `
-Kar se tiče podajanja ENV SPREMENLJIVK kot flag-ov v ukazni vrstici, 
 
 ### NALOGA 2:
 
